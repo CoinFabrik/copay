@@ -104,7 +104,6 @@ var openCreateCallback = function (err, iden){
     else{
         identity = iden;
         identity.openWallets();
-        var network = new async(options.network.testnet);
         for (var i = 0; i < 10; i++) {
             var name = 'test' + i;
             var f = function (s) {
@@ -129,9 +128,10 @@ var openCreateCallback = function (err, iden){
                     {
                         nickname: name,
                         requiredCopayers: 1,
-                        totalCopayers: 1,
-                        network: network,
-                        blockchainOpts: { testnet: options.network.testnet }
+                        totalCopayers: 2,
+                        networkOpts: { testnet: {} },
+                        network: null,
+                        blockchainOpts: { testnet: {} }
                     }
                 ),
                 f
