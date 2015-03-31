@@ -959,10 +959,10 @@ Wallet.prototype._setupNetworkHandlers = function() {
 
   var net = this.network;
   net.removeAllListeners();
-  net.multiOn('connect', self._onConnect.bind(self));
-  net.multiOn('data', self._onData.bind(self));
-  net.multiOn('no_messages', self._onNoMessages.bind(self));
-  net.multiOn('connect_error', function() {
+  net.on('connect', self._onConnect.bind(self));
+  net.on('data', self._onData.bind(self));
+  net.on('no_messages', self._onNoMessages.bind(self));
+  net.on('connect_error', function() {
     self.emitAndKeepAlive('connectionError');
   });
 };

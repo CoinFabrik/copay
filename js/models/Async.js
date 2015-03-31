@@ -9,7 +9,7 @@ var nodeUtil = require('util');
 var extend = nodeUtil._extend;
 var io = require('socket.io-client');
 var preconditions = require('preconditions').singleton();
-var PhysicalNetwork = require('PhysicalNetwork').singleton;
+var PhysicalNetwork = require('./PhysicalNetwork').singleton;
 
 var network = PhysicalNetwork.getInstance();
 
@@ -48,7 +48,8 @@ Network.prototype.cleanUp = function() {
   this.copayerForPeer = {};
   this.criticalErr = '';
   log.info('Async DISCONNECT');
-  network.cleanUp(pubKey);
+  if (pubKey)
+    network.cleanUp(pubKey);
   this.removeAllListeners();
   this.emitEventToNetwork = null;
 };
@@ -119,7 +120,8 @@ Network.prototype._addConnectedCopayer = function(copayerId) {
 };
 
 Network.prototype.getKey = function() {
-  preconditions.checkState(this.privkey || this.key);
+  if (!(this.privkey || this.key))
+    return null;
   if (!this.key) {
     var key = new bitcore.Key();
     key.private = new Buffer(this.privkey, 'hex');
@@ -130,7 +132,10 @@ Network.prototype.getKey = function() {
 };
 
 Network.prototype.getPubKey = function() {
-  return this.getKey().public.toString('hex');
+  var key = this.getKey();
+  if (!key)
+    return null;
+  return key.public.toString('hex');
 };
 
 //hex version of one's own nonce
@@ -301,6 +306,7 @@ Network.prototype.start = function(opts, openCallback) {
   var pubKey = this.getPubKey();
   this.emitEventToNetwork = network.send.bind(network, pubKey);
   
+  var self = this;
   network.registerAsync(
     pubKey,
     {
@@ -333,7 +339,7 @@ Network.prototype.start = function(opts, openCallback) {
         
         self.emitEventToNetwork('subscribe', pubkey);
         
-        self.registerAsyncCallback(
+        network.registerAsyncCallback(
           pubkey,
           'disconnect',
           function() {
@@ -342,7 +348,8 @@ Network.prototype.start = function(opts, openCallback) {
         );
         if (typeof openCallback === 'function')
           openCallback();
-      }
+      },
+      'message': self._onMessage.bind(self)
     }
   );
   network.startNetwork(pubKey, this.url, this.socketOptions);

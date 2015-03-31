@@ -18,27 +18,24 @@ function PhysicalNetwork(){
     this.registeredMiscCallbacks = {};
 };
 
-export.singleton = function (){
-    var instance;
-
-    function createInstance(){
-        var object = new Object("I am the instance");
-        return object;
-    }
+module.exports.singleton = function (){
+    var instance = null;
 
     return {
         getInstance: function () {
-            return instance || (instance = createInstance());
+            if (instance)
+                return instance;
+            return instance = new PhysicalNetwork();
         }
     };
 }();
 
 PhysicalNetwork.prototype._connected = function (url){
-    return url in self.sockets && self.sockets.status === SocketStatus.Connected;
+    return url in this.sockets && this.sockets[url].status === SocketStatus.Connected;
 };
 
 PhysicalNetwork.prototype._connecting = function (url){
-    return url in self.sockets && self.sockets.status === SocketStatus.Connecting;
+    return url in this.sockets && this.sockets[url].status === SocketStatus.Connecting;
 };
 
 PhysicalNetwork.prototype._emitSingle = function (pubKey, event){
@@ -55,7 +52,7 @@ PhysicalNetwork.prototype._emitSingle = function (pubKey, event){
 
 PhysicalNetwork.prototype._emitAll = function (event){
     for (var pubKey in this.knownAsyncs)
-        this._emitSingle.apply(pubKey, arguments);
+        this._emitSingle.apply(this, [pubKey].concat(arguments));
 };
 
 PhysicalNetwork.prototype._notifyConnectionStatus = function (url, event){
@@ -105,7 +102,7 @@ PhysicalNetwork.prototype._registerMiscCallbacksInBatch = function (socket){
     for (var eventName in this.registeredMiscCallbacks){
         socket.on(
             eventName,
-            generateMiscEventHandler(self, eventName)
+            generateMiscEventHandler(this, eventName)
         );
     }
 };
@@ -120,17 +117,18 @@ PhysicalNetwork.prototype.startNetwork = function (pubKey, url, options){
         if (!(url in this.notifyOnNextConnect))
             this.notifyOnNextConnect[url] = [];
         this.notifyOnNextConnect[url].push(pubKey);
+        this.knownAsyncs[pubKey].url = url;
     }
     
-    if (this._connecting(url))
+    if (this._connecting(url)){
         return;
+    }
     
     var socket = io.connect(url, options);
     this.sockets[url] = {
         socket: socket,
         status: SocketStatus.Connecting
     };
-    this.knownAsyncs[pubKey].url = url;
     var self = this;
     socket.on(
         'connect',
@@ -161,18 +159,19 @@ PhysicalNetwork.prototype.startNetwork = function (pubKey, url, options){
     socket.on(
         'message',
         function (data){
-            vase async = self.knownAsyncs[data.to];
-            if (!async)
+            var async = self.knownAsyncs[data.to];
+            if (!async){
                 return;
+            }
             var cb = async.callbacks['message'];
-            if (!cb)
+            if (!cb){
                 return;
+            }
             cb.apply(null, arguments);
         }
     );
-    
-    this._addAllMiscCallbacks();
-    this._registerMiscCallbacksInBatch(socket);
+    self._addAllMiscCallbacks();
+    self._registerMiscCallbacksInBatch(socket);
 };
 
 PhysicalNetwork.prototype.registerAsync = function (pubKey, callbackMap){
@@ -184,9 +183,8 @@ PhysicalNetwork.prototype.registerAsync = function (pubKey, callbackMap){
 PhysicalNetwork.prototype.registerAsyncCallback = function (pubKey, event, newCallback){
     var map = null;
     if (!(pubKey in this.knownAsyncs))
-        this.knownAsyncs[pubKey] = {event: newCallback};
-    else
-        this.knownAsyncs[pubKey][event] = newCallback;
+        this.knownAsyncs[pubKey] = {};
+    this.knownAsyncs[pubKey][event] = newCallback;
     if (!this._addMiscCallback(event))
         return;
     for (var url in this.sockets)
@@ -194,18 +192,20 @@ PhysicalNetwork.prototype.registerAsyncCallback = function (pubKey, event, newCa
 };
 
 PhysicalNetwork.prototype._socketFromPublicKey = function(pubKey){
+    var f = log.debug.bind(log);
     if (!(pubKey in this.knownAsyncs)){
-        log.debug('PhysicalNetwork._socketFromPublicKey(): An unknown Async tried to send data.');
+        f('PhysicalNetwork._socketFromPublicKey(): An unknown Async tried to send data.');
         return null;
     }
     var async = this.knownAsyncs[pubKey];
-    if (!(url in async)){
-        log.debug('PhysicalNetwork._socketFromPublicKey(): An Async tried to send data before calling startNetwork().');
+    if (!('url' in async)){
+        f('PhysicalNetwork._socketFromPublicKey(): An Async tried to send data before calling startNetwork().');
+        f(async);
         return null;
     }
     var url = async.url;
     if (!this._connected(url)){
-        log.debug('PhysicalNetwork._socketFromPublicKey(): The socket is not yet ready.');
+        f('PhysicalNetwork._socketFromPublicKey(): The socket is not yet ready.');
         return null;
     }
     return this.sockets[url].socket;
@@ -213,8 +213,9 @@ PhysicalNetwork.prototype._socketFromPublicKey = function(pubKey){
 
 PhysicalNetwork.prototype.send = function (pubKey, event){
     var socket = this._socketFromPublicKey(pubKey);
-    if (!socket)
+    if (!socket){
         return;
+    }
     var args = Array.prototype.slice.call(arguments, 1);
     socket.emit.apply(socket, args);
 }

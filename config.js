@@ -14,7 +14,8 @@ var defaultConfig = {
   // network layer config
   network: {
     testnet: {
-      url: 'https://test-insight.bitpay.com:443',
+      //url: 'https://test-insight.bitpay.com:443',
+      url: 'http://httpserver:3001',
       transports: ['polling'],
     },
     livenet: {
