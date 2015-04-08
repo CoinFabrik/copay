@@ -108,18 +108,16 @@ PhysicalNetwork.prototype._registerMiscCallbacksInBatch = function (socket){
 };
 
 PhysicalNetwork.prototype.startNetwork = function (pubKey, url, options){
+    this.knownAsyncs[pubKey].url = url;
     if (this._connected(url)){
         this._emitSingle(pubKey, 'connect');
         return;
     }
     
-    {
-        if (!(url in this.notifyOnNextConnect))
-            this.notifyOnNextConnect[url] = [];
-        this.notifyOnNextConnect[url].push(pubKey);
-        this.knownAsyncs[pubKey].url = url;
-    }
-    
+    if (!(url in this.notifyOnNextConnect))
+        this.notifyOnNextConnect[url] = [];
+    this.notifyOnNextConnect[url].push(pubKey);
+
     if (this._connecting(url)){
         return;
     }
